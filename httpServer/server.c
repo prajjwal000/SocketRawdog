@@ -37,7 +37,19 @@ int main() {
     int asock = accept(lsock, (struct sockaddr *)&their_addr, &addr_size);
         if (!fork()){
              close(lsock);
-            send(asock, "Hello", 6, 0);
+            char buf[] = {
+                "HTTP/1.1 200 OK\r\n"
+                "Server: nginx/1.14.0 (Ubuntu)\r\n"
+                "Date: Fri, 14 Apr 2023 12:34:56 GMT\r\n"
+                "Content-Type: text/html\r\n"
+                "Content-Length: 1256\r\n"
+                "Last-Modified: Mon, 20 Aug 2018 18:51:29 GMT\r\n"
+                "Connection: close\r\n"
+                "ETag: \"5b7b0e21-4e8\"\r\n"
+                "Accept-Ranges: bytes\r\n\n"
+                "<html><head><title>hell yeah!</title></head><body>Hell yeah!</body></html>"
+            };
+            send(asock, buf, sizeof buf, 0);
             close(asock);
             return 0;
         }
