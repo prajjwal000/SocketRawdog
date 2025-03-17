@@ -33,10 +33,16 @@ int main() {
   listen(lsock, 10);
 
   // accept connection from multiple clients ( polling )
-  int usock = accept(lsock, (struct sockaddr *)&their_addr, &addr_size);
-  send(usock, "Hello sailor", 13, 0);
-  close(usock);
-  close(lsock);
+  for (;;) {
+    int asock = accept(lsock, (struct sockaddr *)&their_addr, &addr_size);
+        if (!fork()){
+             close(lsock);
+            send(asock, "Hello", 6, 0);
+            close(asock);
+            return 0;
+        }
+        close(asock);
+  }
   // parse http requests
   // open file and send it through network
 }
