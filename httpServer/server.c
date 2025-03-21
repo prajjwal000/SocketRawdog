@@ -1,60 +1,163 @@
 #include <arpa/inet.h>
-#include <errno.h>
 #include <netdb.h>
 #include <netinet/in.h>
+#include <poll.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/poll.h>
 #include <sys/socket.h>
 #include <sys/types.h>
-#include <sys/wait.h>
 #include <unistd.h>
+#define PORT "6969"
 
-#define PORT 6969
+void *get_in_addr(struct sockaddr *sa) {
+
+  if (sa->sa_family == AF_INET) {
+    return &(((struct sockaddr_in *)sa)->sin_addr);
+  }
+
+  return &(((struct sockaddr_in6 *)sa)->sin6_addr);
+}
+
+int get_listener_socket(void) {
+
+  int listener, err;
+  int yes = 1;
+  socklen_t myaddr_size;
+  struct addrinfo hints, *ai, *p;
+
+  memset(&hints, 0, sizeof hints);
+  hints.ai_family = AF_UNSPEC;
+  hints.ai_socktype = SOCK_STREAM;
+  hints.ai_flags = AI_PASSIVE;
+
+  if ((err = getaddrinfo(NULL, PORT, &hints, &ai)) != 0) {
+    fprintf(stderr, "httpserver: %s\n", gai_strerror(err));
+    exit(1);
+  }
+
+  for (p = ai; p != NULL; p = p->ai_next) {
+    listener = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
+    if (listener < 0) {
+      perror("ERROR: socket:");
+      continue;
+    }
+
+    if (setsockopt(listener, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) < 0) {
+        perror("ERROR: setsockopt: ");
+        continue;
+      }
+
+    if (bind(listener, p->ai_addr, p->ai_addrlen) < 0) {
+      perror("ERROR: bind: ");
+            close(listener);
+            continue;
+    }
+        break;
+  }
+
+  freeaddrinfo(ai);
+
+  if (p == NULL) {
+    printf("ERROR: No addr selected for listener\n");
+    return -1;
+  }
+
+  if (listen(listener, 10) == -1) {
+    perror("ERROR: listen");
+    return -1;
+  }
+
+  return listener;
+}
+
+void add_to_pfds(struct pollfd *pfds[], int newfd, int *fd_count,
+                 int *fd_size) {
+
+  if (*fd_count == *fd_size) {
+    *fd_size *= 2;
+    *pfds = realloc(*pfds, sizeof(**pfds) * (*fd_size));
+  }
+
+  (*pfds)[*fd_count].fd = newfd;
+  (*pfds)[*fd_count].events = POLLIN;
+  (*fd_count)++;
+}
+void del_from_pfds(struct pollfd pfds[], int i, int *fd_count) {
+  pfds[i] = pfds[*fd_count - 1];
+  (*fd_count)--;
+}
 
 int main() {
 
+  int listener;
+  int newfd;
   struct sockaddr_storage their_addr;
-  socklen_t addr_size;
-  int yes = 1;
+  socklen_t addrlen;
 
-  // listen on socket
-  //--------------------------------------------------------------------------------
-  int lsock = socket(PF_INET, SOCK_STREAM, 0);
-  setsockopt(lsock, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int));
-  struct sockaddr_in my_addr;
-  my_addr.sin_family = AF_INET;
-  my_addr.sin_port = htons(PORT);
-  my_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-  memset(my_addr.sin_zero, '\0', sizeof my_addr.sin_zero);
-  bind(lsock, (struct sockaddr *)&my_addr, sizeof my_addr);
+  char buf[1000];
+  char theirIP[INET6_ADDRSTRLEN];
 
-  listen(lsock, 10);
+  int fd_count = 0;
+  int fd_size = 5;
+  struct pollfd *pfds = malloc(sizeof *pfds * fd_size);
 
-  // accept connection from multiple clients ( polling )
-  for (;;) {
-    int asock = accept(lsock, (struct sockaddr *)&their_addr, &addr_size);
-        if (!fork()){
-             close(lsock);
-            char buf[] = {
-                "HTTP/1.1 200 OK\r\n"
-                "Server: nginx/1.14.0 (Ubuntu)\r\n"
-                "Date: Fri, 14 Apr 2023 12:34:56 GMT\r\n"
-                "Content-Type: text/html\r\n"
-                "Content-Length: 1256\r\n"
-                "Last-Modified: Mon, 20 Aug 2018 18:51:29 GMT\r\n"
-                "Connection: close\r\n"
-                "ETag: \"5b7b0e21-4e8\"\r\n"
-                "Accept-Ranges: bytes\r\n\n"
-                "<html><head><title>hell yeah!</title></head><body>Hell yeah!</body></html>"
-            };
-            send(asock, buf, sizeof buf, 0);
-            close(asock);
-            return 0;
-        }
-        close(asock);
+  listener = get_listener_socket();
+  if (listener == -1) {
+    fprintf(stderr, "Error getting listener socket\n");
+    exit(1);
   }
-  // parse http requests
-  // open file and send it through network
+
+  // Add listener to pfds
+  pfds[0].fd = listener;
+  pfds[0].events = POLL_IN;
+  fd_count = 1;
+
+  for (;;) {
+    int poll_count = poll(pfds, fd_count, -1);
+    if (poll_count == -1) {
+      perror("ERROR: poll");
+      exit(1);
+    }
+
+    for (int i = 0; i < fd_count; i++) {
+      if (!(pfds[i].revents & POLLIN)) {
+        continue;
+      }
+
+      if (pfds[i].fd == listener) { // LISTENER SOCKET
+        addrlen = sizeof(their_addr);
+        newfd = accept(listener, (struct sockaddr *)&their_addr, &addrlen);
+        if (newfd == -1) {
+          perror("ERROR: accept");
+          continue;
+        }
+        add_to_pfds(&pfds, newfd, &fd_count, &fd_size);
+        printf("INFO: connection from %s on socket %d\n",
+               inet_ntop(their_addr.ss_family,
+                         get_in_addr((struct sockaddr *)&their_addr), theirIP,
+                         INET6_ADDRSTRLEN),
+               newfd);
+        continue; // To other fds
+      }
+      // Receiver
+      int nbytes = recv(pfds[i].fd, buf, sizeof buf, 0);
+      int reciever_fd = pfds[i].fd;
+
+      if (nbytes == 0) {
+        printf("Connection closed on socket %d\n", reciever_fd);
+        close(reciever_fd);
+        del_from_pfds(pfds, i, &fd_count);
+      }
+      if (nbytes < 0) {
+        perror("ERROR: recv");
+        close(reciever_fd);
+        del_from_pfds(pfds, i, &fd_count);
+      }
+      printf("Got %s from socket: %d\n", buf, reciever_fd);
+    }
+  }
+  return 0;
 }
