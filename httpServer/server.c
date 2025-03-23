@@ -46,16 +46,16 @@ int get_listener_socket(void) {
     }
 
     if (setsockopt(listener, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) < 0) {
-        perror("ERROR: setsockopt: ");
-        continue;
-      }
+      perror("ERROR: setsockopt: ");
+      continue;
+    }
 
     if (bind(listener, p->ai_addr, p->ai_addrlen) < 0) {
       perror("ERROR: bind: ");
-            close(listener);
-            continue;
+      close(listener);
+      continue;
     }
-        break;
+    break;
   }
 
   freeaddrinfo(ai);
@@ -155,7 +155,8 @@ int main() {
         perror("ERROR: recv");
         close(reciever_fd);
         del_from_pfds(pfds, i, &fd_count);
-      }
+      } 
+      buf[nbytes-1] = '\0';
       printf("Got %s from socket: %d\n", buf, reciever_fd);
     }
   }
