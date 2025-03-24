@@ -150,13 +150,15 @@ int main() {
         printf("Connection closed on socket %d\n", reciever_fd);
         close(reciever_fd);
         del_from_pfds(pfds, i, &fd_count);
+        continue;
       }
       if (nbytes < 0) {
         perror("ERROR: recv");
         close(reciever_fd);
         del_from_pfds(pfds, i, &fd_count);
-      } 
-      buf[nbytes-1] = '\0';
+        continue;
+      }
+      buf[nbytes - 1] = '\0';
       printf("Got %s from socket: %d\n", buf, reciever_fd);
     }
   }
