@@ -12,6 +12,18 @@
 #include <unistd.h>
 #define PORT "6969"
 
+typedef struct {
+  char *field;
+  char *value;
+} Header;
+
+typedef struct {
+  char Method[10]; // Noone with good intentions send method longer than 10
+  char Uri[500];   // Only support 499 characters URI, else send internal server
+                   // error
+  Header *headers;
+} Request;
+
 void *get_in_addr(struct sockaddr *sa) {
 
   if (sa->sa_family == AF_INET) {
@@ -88,6 +100,22 @@ void add_to_pfds(struct pollfd *pfds[], int newfd, int *fd_count,
 void del_from_pfds(struct pollfd pfds[], int i, int *fd_count) {
   pfds[i] = pfds[*fd_count - 1];
   (*fd_count)--;
+}
+
+int sendall(int s, char* buf, int* len){
+    int total = 0;
+    int bytesleft = n;
+    int n;
+    while (total < *len) {
+        n = send(s, buf+total, bytesleft, 0);
+        if (n==1) {break;}
+        total += n;
+        bytesleft -= n;
+    }
+
+    *len = total;
+
+    return n==-1?-1:0;
 }
 
 int main() {
