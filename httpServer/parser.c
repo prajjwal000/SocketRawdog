@@ -1,7 +1,23 @@
-#include "token.h"
-#include <stdio.h>
+#include "parser.h"
+#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
+
+Request req_parse(char *buf, int buf_size, struct sockaddr_storage their_addr) {
+  Request req = {0};
+  req.their_addr = their_addr;
+  Lexer lexer = new_lexer(buf, buf_size);
+  Token token = next_token(&lexer);
+  assert((!strncmp("GET", token.value, token.value_size)) ||
+         (!strncmp("POST", token.value, token.value_size)));
+  strncpy(req.Method, token.value, 10);
+  token = next_token(&lexer);
+  strncpy(req.Uri, token.value, 500);
+  token = next_token(&lexer);
+  strncpy(req.Version, token.value, 20);
+
+  return req;
+}
 
 Lexer new_lexer(char *buf, int buf_size) {
   Lexer lexer = {0};
@@ -44,7 +60,7 @@ Token next_token(Lexer *lexer) {
     break;
   default:
     if (is_letter((*lexer).character)) {
-      strncpy(token.type, "WORD", TYPE_LENGTH);
+      strncpy(token.type, "LEGAL", TYPE_LENGTH);
       read_word(&token, lexer);
     } else {
       strncpy(token.type, "ILLEGAL", TYPE_LENGTH);
@@ -59,7 +75,7 @@ Token next_token(Lexer *lexer) {
 
 int is_letter(char ch) {
   return ('a' <= ch && ch <= 'z') || ('A' <= ch && ch <= 'Z') ||
-         ('0' <= ch && ch <= '9') || ch == '_';
+         ('0' <= ch && ch <= '9') || ch == '_' || ch == '/' || ch == '.';
 }
 
 void read_word(Token *token, Lexer *lexer) {
@@ -75,12 +91,12 @@ void read_word(Token *token, Lexer *lexer) {
     (*token).value[tok_value_pos] = (*lexer).character;
     tok_value_pos++;
     read_char(lexer);
-  //       if (tok_value_pos < 20 ) {
-  // printf("Before: Lexer pos: %d Lexer readpos: %d Lexer char: %c\n",
-  //        (*lexer).position, (*lexer).read_position, (*lexer).character);
-  //       } else {
-  //           exit(1);
-  //       }
+    //       if (tok_value_pos < 20 ) {
+    // printf("Before: Lexer pos: %d Lexer readpos: %d Lexer char: %c\n",
+    //        (*lexer).position, (*lexer).read_position, (*lexer).character);
+    //       } else {
+    //           exit(1);
+    //       }
   }
   (*token).value[tok_value_pos] = '\0';
 }

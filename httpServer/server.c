@@ -1,4 +1,4 @@
-#include "token.h"
+#include "parser.h"
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <netinet/in.h>
@@ -8,23 +8,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/poll.h>
-#include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
 #define PORT "6777"
 #define CONN 10
-
-typedef struct {
-  char *field;
-  char *value;
-} Header;
-
-typedef struct {
-  char Method[10];
-  char Uri[500];
-  struct sockaddr_storage their_addr;
-  Header *headers;
-} Request;
 
 void *get_in_addr(struct sockaddr *sa) {
 
@@ -121,24 +108,6 @@ int sendall(int s, char *buf, int *len) {
 
   return n == -1 ? -1 : 0;
 }
-Request req_parse(char *buf, int buf_size, struct sockaddr_storage their_addr) {
-  Request req = {0};
-  req.their_addr = their_addr;
-  Lexer lexer = new_lexer(buf, buf_size);
-  Token token = next_token(&lexer);
-  if (!strncmp("WORD", token.type, token.value_size)) {
-    if (!strncmp("GET", token.value, token.value_size)) {
-      strncpy(req.Method, token.value, token.value_size);
-    } else {
-      printf("ERROR: NOT GET METHOD");
-    }
-  } else {
-    printf("ERROR: NOT WORD TOKEN");
-  }
-  strncpy(req.Uri, "/index", 500);
-
-  return req;
-}
 
 int main() {
   int listener;
@@ -210,10 +179,11 @@ int main() {
         continue;
       }
       Request req = req_parse(buf, buf_size, their_addr[i]);
-      printf("%s %s %s \n", req.Method, req.Uri,
+      printf("%s %s %s on %s:%d \n", req.Method, req.Uri, req.Version,
              inet_ntop(req.their_addr.ss_family,
                        get_in_addr((struct sockaddr *)&req.their_addr), theirIP,
-                       INET6_ADDRSTRLEN));
+                       INET6_ADDRSTRLEN),
+             ntohs(((struct sockaddr_in *)&req.their_addr)->sin_port));
       printf("Got on socket %d: %s\n", reciever_fd, buf);
     }
   }
