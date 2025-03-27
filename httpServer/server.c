@@ -1,3 +1,4 @@
+#include "token.h"
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <netinet/in.h>
@@ -10,7 +11,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
-#define PORT "3000"
+#define PORT "6777"
 #define CONN 10
 
 typedef struct {
@@ -120,11 +121,21 @@ int sendall(int s, char *buf, int *len) {
 
   return n == -1 ? -1 : 0;
 }
-Request req_parse(char buf[1000], struct sockaddr_storage their_addr) {
+Request req_parse(char *buf, int buf_size, struct sockaddr_storage their_addr) {
   Request req = {0};
   req.their_addr = their_addr;
-  strncpy(req.Method, "GET", sizeof req.Method);
-  strncpy(req.Uri, "/index.html", sizeof req.Uri);
+  Lexer lexer = new_lexer(buf, buf_size);
+  Token token = next_token(&lexer);
+  if (!strncmp("WORD", token.type, token.value_size)) {
+    if (!strncmp("GET", token.value, token.value_size)) {
+      strncpy(req.Method, token.value, token.value_size);
+    } else {
+      printf("ERROR: NOT GET METHOD");
+    }
+  } else {
+    printf("ERROR: NOT WORD TOKEN");
+  }
+  strncpy(req.Uri, "/index", 500);
 
   return req;
 }
@@ -135,7 +146,8 @@ int main() {
   struct sockaddr_storage their_addr[CONN];
   socklen_t addrlen;
 
-  char buf[1000] = {0};
+  int buf_size = 1000;
+  char *buf = malloc(buf_size * sizeof(char));
   char theirIP[INET6_ADDRSTRLEN] = {0};
 
   int fd_count = 0;
@@ -182,7 +194,7 @@ int main() {
         continue; // To other fds
       }
       // Receiver
-      int nbytes = recv(pfds[i].fd, buf, sizeof buf, 0);
+      int nbytes = recv(pfds[i].fd, buf, buf_size - 1, 0);
       int reciever_fd = pfds[i].fd;
 
       if (nbytes == 0) {
@@ -197,7 +209,7 @@ int main() {
         del_from_pfds(pfds, i, &fd_count, their_addr);
         continue;
       }
-      Request req = req_parse(buf, their_addr[i]);
+      Request req = req_parse(buf, buf_size, their_addr[i]);
       printf("%s %s %s \n", req.Method, req.Uri,
              inet_ntop(req.their_addr.ss_family,
                        get_in_addr((struct sockaddr *)&req.their_addr), theirIP,
