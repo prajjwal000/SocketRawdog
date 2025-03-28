@@ -41,17 +41,19 @@ void header_parse(Request *req, Lexer *lexer) {
     // int key_length = strlen(temp_key);
     // assert(temp_key[key_length - 1] == ':');
     tok = next_token_head_value(lexer);
-    char *temp_value = tok.value;
-    int temp_value_size = tok.value_size;
-    // printf("Token value: %s ", temp_value);
-    assert(!strncmp("LEGAL", tok.type, 6));
-    tok = next_token(lexer);
-    // printf("Token value: %s ", tok.value);
-    assert(!strncmp("REGISTERED_NURSE", tok.type, 20));
-    add_to_header_map(header_map, header_map_size, &current_headers, temp_key,
-                      temp_key_size, temp_value, temp_value_size);
-    req->header_count = current_headers;
-    req->headers = header_map;
+    if (strncmp("REGISTERED_NURSE", tok.type, 20)) {
+      char *temp_value = tok.value;
+      int temp_value_size = tok.value_size;
+      // printf("Token value: %s ", temp_value);
+      assert(!strncmp("LEGAL", tok.type, 6));
+      tok = next_token(lexer);
+      // printf("Token value: %s ", tok.value);
+      assert(!strncmp("REGISTERED_NURSE", tok.type, 20));
+      add_to_header_map(header_map, header_map_size, &current_headers, temp_key,
+                        temp_key_size, temp_value, temp_value_size);
+      req->header_count = current_headers;
+      req->headers = header_map;
+    }
   }
 }
 
@@ -180,7 +182,7 @@ Token next_token_head_value(Lexer *lexer) {
     //   break;
 
   default:
-    if (is_letter((*lexer).character)) {
+    if (is_letter_head_value((*lexer).character)) {
       strncpy(token.type, "LEGAL", TYPE_LENGTH);
       read_word_head_value(&token, lexer);
       jump = 1;
@@ -230,7 +232,8 @@ int is_letter_head_value(char ch) {
   return ('a' <= ch && ch <= 'z') || ('A' <= ch && ch <= 'Z') ||
          ('0' <= ch && ch <= '9') || ch == '_' || ch == '/' || ch == '.' ||
          ch == ':' || ch == '*' || ch == '-' || ch == '(' || ch == ')' ||
-         ch == ';' || ch == '+' || ch == ',' || ch == '=' || ch == ' ';
+         ch == ';' || ch == '+' || ch == ',' || ch == '=' || ch == ' ' ||
+         ch == '"' || ch == '?';
 }
 void read_word_head_value(Token *token, Lexer *lexer) {
   (*token).value_size = 10;
