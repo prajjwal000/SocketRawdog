@@ -35,9 +35,12 @@ typedef struct {
 
 Lexer new_lexer(char *buf, int buf_size);
 Token next_token(Lexer *lexer);
+Token next_token_head_value(Lexer *lexer);
 void read_char(Lexer *lexer);
 int is_letter(char ch);
+int is_letter_head_value(char ch);
 void read_word(Token *token, Lexer *lexer);
+void read_word_head_value(Token *token, Lexer *lexer);
 Request req_parse(char *buf, int buf_size, struct sockaddr_storage their_addr);
 void header_parse(Request *req, Lexer *lexer);
 void add_to_header_map(Header *header_map, int header_map_size,

@@ -108,6 +108,35 @@ int sendall(int s, char *buf, int *len) {
 
   return n == -1 ? -1 : 0;
 }
+char *read_file_to_buffer(char *filename, int *size) {
+  FILE *file = fopen(filename, "rb");
+  if (!file) {
+    perror("file");
+    exit(69);
+  }
+
+  fseek(file, 0, SEEK_END);
+  long file_size = ftell(file);
+  fseek(file, 0, SEEK_SET);
+  char *buffer = (char *)malloc(file_size + 1);
+  if (!buffer) {
+    perror("Failed to allocate memory");
+    fclose(file);
+    exit(10);
+  }
+  size_t bytes_read = fread(buffer, 1, file_size, file);
+  if (bytes_read != file_size) {
+    perror("Failed to read the complete file");
+    free(buffer);
+    fclose(file);
+    exit(10);
+  }
+
+  buffer[file_size] = '\0';
+  *size = file_size + 1;
+  fclose(file);
+  return buffer;
+}
 
 int main() {
   int listener;
@@ -179,12 +208,32 @@ int main() {
         continue;
       }
       Request req = req_parse(buf, buf_size, their_addr[i]);
-      printf("%s %s %s on %s:%d \n", req.Method, req.Uri, req.Version,
+      char file_path[100] = ".";
+      strncat(file_path, req.Uri, 90);
+      if (!strncmp(file_path, "./", 100)) {
+        strncat(file_path, "index.html", 90);
+      }
+      int length = 0;
+      char *send_body = read_file_to_buffer(file_path, &length);
+      char length_string[50];
+      sprintf(length_string, "%d\r\n\r\n", length-1);
+      char sendbuf[10000];
+      const char *http_response = "HTTP/1.1 200 OK\r\n"
+                                  "Content-Type: text/html; charset=UTF-8\r\n"
+                                  "Connection: close\r\n"
+                                  "Content-Length: ";
+      strncat(sendbuf, http_response, 490);
+      strncat(sendbuf, length_string, 50);
+      strncat(sendbuf, send_body, 10000);
+      int len = strlen(sendbuf);
+      sendall(pfds[i].fd, sendbuf, &len);
+
+      printf("Req: %s %s %s on %s:%d \n", req.Method, req.Uri, req.Version,
              inet_ntop(req.their_addr.ss_family,
                        get_in_addr((struct sockaddr *)&req.their_addr), theirIP,
                        INET6_ADDRSTRLEN),
              ntohs(((struct sockaddr_in *)&req.their_addr)->sin_port));
-      printf("Got on socket %d: %s\n", reciever_fd, buf);
+      printf("sending: %s\n", sendbuf);
     }
   }
   return 0;
