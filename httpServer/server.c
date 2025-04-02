@@ -228,11 +228,17 @@ int main() {
       int len = strlen(sendbuf);
       sendall(pfds[i].fd, sendbuf, &len);
 
+            //INFO
       printf("Req: %s %s %s on %s:%d \n", req.Method, req.Uri, req.Version,
              inet_ntop(req.their_addr.ss_family,
                        get_in_addr((struct sockaddr *)&req.their_addr), theirIP,
                        INET6_ADDRSTRLEN),
              ntohs(((struct sockaddr_in *)&req.their_addr)->sin_port));
+            printf("Headers-----------------------------\n");
+            for ( int i = 0; i < req.header_count; i++){
+                printf("Field: \"%s\", Value: \"%s\"\n", req.headers[i].field, req.headers[i].value);
+            }
+
       printf("sending: %s\n", sendbuf);
     }
   }

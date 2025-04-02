@@ -51,8 +51,8 @@ void header_parse(Request *req, Lexer *lexer) {
       assert(!strncmp("REGISTERED_NURSE", tok.type, 20));
       add_to_header_map(header_map, header_map_size, &current_headers, temp_key,
                         temp_key_size, temp_value, temp_value_size);
-      req->header_count = current_headers;
       req->headers = header_map;
+      req->header_count = current_headers;
     }
   }
 }
